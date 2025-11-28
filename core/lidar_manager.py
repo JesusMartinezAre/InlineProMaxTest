@@ -12,6 +12,8 @@ from core.zone_manager import (
     release_zone,
     update_zone_timestamp
 )
+from utils.db_local import LocalDB
+local_db = LocalDB()
 
 # ------------------------------------------------------------
 # Config puerto: usa PUERTO_LIDAR si está en config, si no autodetecta
@@ -50,20 +52,30 @@ def procesar_linea_lidar(linea: str):
 
 
 def manejar_evento_zona(zona: int, evento: str):
-    """Integra el evento con zone_manager usando las rutas reales de video."""
+    """Integra el evento con zone_manager usando las rutas reales de video y guarda en la BD SOLO en ENTER."""
+    # timestamp no se usa actualmente en la BD local, así que lo quitamos
     if evento == "ENTER":
-        # obtener la ruta real para la zona (usa tu mapeo existente)
         ruta = get_video_for_zone(zona)
         if ruta is None:
             print(f"[LIDAR] No se encontró video para zona {zona}")
             return
-        # activar la zona con la ruta real
+
+        # activar zona
         activate_zone(zona, ruta)
         update_zone_timestamp(zona)
-    else:  # EXIT
-        release_zone(zona)
 
-    print(f"[LIDAR] Zona {zona} -> {evento}")
+        # INSERT SOLO EN ENTER -> usa la función que ya tienes en LocalDB
+        try:
+            local_db.insert_interaction(zona)
+            print(f"[LIDAR] Zona {zona} -> ENTER (guardado en DB)")
+        except Exception as e:
+            print(f"[LIDAR] Error guardando interacción zona {zona}: {e}")
+
+    else:  # EXIT → NO GUARDAR NADA
+        release_zone(zona)
+        print(f"[LIDAR] Zona {zona} -> EXIT (no se guarda)")
+
+
 
 
 def lidar_loop(detener_flag: dict):
